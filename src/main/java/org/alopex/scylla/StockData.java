@@ -34,12 +34,6 @@ public class StockData {
 			highPrices  = new ArrayList<Double> ();
 			lowPrices   = new ArrayList<Double> ();
 			volumes     = new ArrayList<Double> ();
-					
-			//Fetch data points
-			fetchData();
-			
-			//Normalize data
-			normalize();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -48,16 +42,22 @@ public class StockData {
 	/**
 	 * Iterates through history, compiling all lists
 	 */
-	public void fetchData() {
+	public void fetchData(Calendar from, Calendar to) {
 		try {
-			Calendar from = Calendar.getInstance();
-			Calendar to = Calendar.getInstance();
-			from.add(Calendar.YEAR, -5);
 			hq = stock.getHistory(from, to, Interval.DAILY);
 			for(int i = 0; i < hq.size(); i++) {
 				HistoricalQuote thq = hq.get(i);
 				openPrices.add(thq.getOpen().doubleValue());
+				
+				//DEBUG
+				//SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
+				//System.out.println("Open price logged: " + sdf.format(thq.getDate().getTime()) + " | " + thq.getOpen().doubleValue());
+				
 				closePrices.add(thq.getClose().doubleValue());
+				
+				//DEBUG
+				//System.out.println("\tClose price logged: " + sdf.format(thq.getDate().getTime()) + " | " + thq.getClose().doubleValue());
+				
 				highPrices.add(thq.getHigh().doubleValue());
 				lowPrices.add(thq.getLow().doubleValue());
 				volumes.add((double) thq.getVolume());
@@ -108,6 +108,15 @@ public class StockData {
 		return ((closePriceMin - closePriceMax) * x - Settings.normalizedHigh
 				 * closePriceMin + closePriceMax * Settings.normalizedLow)
 				 / (Settings.normalizedLow - Settings.normalizedHigh);
+	}
+
+	public double[] testData() {
+		double[] data = new double[Settings.inputs];
+		data[0] = openPrices.get(0);
+		data[1] = highPrices.get(0);
+		data[2] = lowPrices.get(0);
+		data[3] = volumes.get(0);
+		return data;
 	}
 	
 	public double[][] getInputs() {
