@@ -1,12 +1,15 @@
 package org.alopex.scylla;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Scanner;
 import java.util.logging.LogManager;
 
 import org.encog.engine.network.activation.ActivationTANH;
 import org.encog.ml.data.MLData;
 import org.encog.ml.data.MLDataPair;
+import org.encog.ml.data.basic.BasicMLData;
 import org.encog.ml.data.basic.BasicMLDataSet;
 import org.encog.neural.networks.BasicNetwork;
 import org.encog.neural.networks.layers.BasicLayer;
@@ -33,13 +36,68 @@ public class ScyllaCore {
 			System.out.println("Existing core detected. Loading...");
 			network = (BasicNetwork) EncogDirectoryPersistence.loadObject(new File("core.dat"));
 		}
-
+		
+		boolean train = false;
+		boolean eval = false;
+		
+		for(String str : args) {
+			String lower = str.toLowerCase();
+			
+			switch(lower) {
+				case "--train":
+					train = true;
+					break;
+					
+				case "--eval":
+					eval = true;
+					break;
+			}
+		}
+		
+		if(train)
+			train();
+		
+		if(eval)
+			eval();
+	}
+	
+	private static void eval() {
+		try {
+			Stock hubspot = YahooFinance.get("HUBS", true);
+			Thread.sleep(100); //TODO: move sleep to StockData
+			StockData hubspotData = new StockData(hubspot);
+			
+			Calendar from = Calendar.getInstance();
+			Calendar to = Calendar.getInstance();
+			from.add(Calendar.MONTH, -1);
+			hubspotData.fetchData(from, to);
+			hubspotData.normalize();
+			
+			double[] testInput = hubspotData.testData();
+			MLData output = network.compute(new BasicMLData(testInput));
+			for(int i = 0; i < output.size(); i++) {
+				SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
+				System.out.println(sdf.format(to.getTime()) + " close prediction: " + String.format("%.4f", hubspotData.denorm(output.getData(i))));
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
+	
+	private static void train() {
 		try {
 			System.out.println("Pulling stock data...");
 			Stock hubspot = YahooFinance.get("HUBS", true);
 			
 			System.out.println("Initializing preprocessing...");
 			StockData hubspotData = new StockData(hubspot);
+			
+			Calendar from = Calendar.getInstance();
+			Calendar to = Calendar.getInstance();
+			from.add(Calendar.YEAR, -5);
+			to.add(Calendar.MONTH, -1);
+			hubspotData.fetchData(from, to);
+			hubspotData.normalize();
 			
 			//TODO: have more than just one training set
 			System.out.println("Fetching normalized dataset...");
@@ -51,7 +109,7 @@ public class ScyllaCore {
 			String lastError = "";
 			int countReset = 0;
 			do {
-				if(epoch == 300000) {
+				if(epoch == Integer.MAX_VALUE - 1) {
 					System.out.println("Maximum epochs reached. Stopping training...");
 					break;
 				}
@@ -70,7 +128,7 @@ public class ScyllaCore {
 					}
 					
 					//countReset check
-					if(countReset == 5) {
+					if(countReset == 10) {
 						System.out.println("countReset (" + lastError + ") triggered. Stopping training...");
 						break;
 					}
@@ -114,7 +172,6 @@ public class ScyllaCore {
 			}
 		}
 		saveScan.close();
-		System.exit(0);
 	}
 
 	private static void initNetworkArch() {
