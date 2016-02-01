@@ -63,7 +63,7 @@ public class ScyllaCore {
 	
 	private static void eval() {
 		try {
-			Stock hubspot = YahooFinance.get("HUBS", true);
+			Stock hubspot = YahooFinance.get("FB", true);
 			Thread.sleep(100); //TODO: move sleep to StockData
 			StockData hubspotData = new StockData(hubspot);
 			
@@ -87,7 +87,7 @@ public class ScyllaCore {
 	private static void train() {
 		try {
 			System.out.println("Pulling stock data...");
-			Stock hubspot = YahooFinance.get("HUBS", true);
+			Stock hubspot = YahooFinance.get("FB", true);
 			
 			System.out.println("Initializing preprocessing...");
 			StockData hubspotData = new StockData(hubspot);
@@ -128,8 +128,8 @@ public class ScyllaCore {
 					}
 					
 					//countReset check
-					if(countReset == 10) {
-						System.out.println("countReset (" + lastError + ") triggered. Stopping training...");
+					if(countReset == 25) {
+						System.out.println("countReset (" + lastError + " x " + countReset + ") triggered. Stopping training...");
 						break;
 					}
 					
