@@ -30,14 +30,19 @@ public class ScyllaCore {
 			network = new BasicNetwork();
 			initNetworkArch();
 		} else {
+			System.out.println("Existing core detected. Loading...");
 			network = (BasicNetwork) EncogDirectoryPersistence.loadObject(new File("core.dat"));
 		}
 
 		try {
+			System.out.println("Pulling stock data...");
 			Stock hubspot = YahooFinance.get("HUBS", true);
+			
+			System.out.println("Initializing preprocessing...");
 			StockData hubspotData = new StockData(hubspot);
 			
 			//TODO: have more than just one training set
+			System.out.println("Fetching normalized dataset...");
 			BasicMLDataSet trainSet = hubspotData.getDataSet();
 
 			final ResilientPropagation train = new ResilientPropagation(network, trainSet);
@@ -46,26 +51,32 @@ public class ScyllaCore {
 			String lastError = "";
 			int countReset = 0;
 			do {
-				if(epoch == 250000) {
+				if(epoch == 300000) {
 					System.out.println("Maximum epochs reached. Stopping training...");
 					break;
 				}
 		
 				train.iteration();
-				double thisError = train.getError();
-				if(("" + thisError).equals(lastError)) {
-					countReset++;
-				} else {
-					countReset = 0;
-				}
-				lastError = "" + thisError;
+				
+				//Epoch print check
 				if(epoch % 1000 == 0) {
-					System.out.println("Iteration " + epoch + "| Error: " + thisError);
-				}
-
-				if(countReset == 5) {
-					System.out.println("countReset triggered. Stopping training...");
-					break;
+					double thisError = train.getError();
+					String thisErrorStr = String.format("%.8f", thisError);
+					
+					if(thisErrorStr.equals(lastError)) {
+						countReset++;
+					} else {
+						countReset = 0;
+					}
+					
+					//countReset check
+					if(countReset == 5) {
+						System.out.println("countReset (" + lastError + ") triggered. Stopping training...");
+						break;
+					}
+					
+					lastError = thisErrorStr;
+					System.out.println("SET " + epoch + " | @ " + String.format("%.8f", thisError));
 				}
 
 				epoch++;
@@ -79,8 +90,8 @@ public class ScyllaCore {
 				System.out.println("Verifying net learning");
 				for(MLDataPair pair : trainSet) {
 					final MLData output = network.compute(pair.getInput());
-					System.out.println("Ideal = $" + hubspotData.denorm(pair.getIdeal().getData(0))
-							+ " | Actual = $" + hubspotData.denorm(output.getData(0)));
+					System.out.println("Ideal = $" + String.format("%.4f", hubspotData.denorm(pair.getIdeal().getData(0)))
+							+ " | Network = $" + String.format("%.4f", hubspotData.denorm(output.getData(0))));
 				}
 			}
 		} catch (Exception ex) {
@@ -89,14 +100,21 @@ public class ScyllaCore {
 		System.out.println();
 		System.out.println("Save core.dat?");
 		Scanner saveScan = new Scanner(System.in);
-		if(saveScan.hasNext()) {
+		while(saveScan.hasNext()) {
 			String answer = saveScan.nextLine();
 			if(answer.equalsIgnoreCase("Y")) {
 				EncogDirectoryPersistence.saveObject(new File("core.dat"), network);
 				System.out.println("Core saved.");
+				break;
+			} else if(answer.equalsIgnoreCase("N")) {
+				System.out.println("Core rejected.");
+				break;
+			} else {
+				System.out.println("Unrecognized reply.");
 			}
 		}
 		saveScan.close();
+		System.exit(0);
 	}
 
 	private static void initNetworkArch() {
