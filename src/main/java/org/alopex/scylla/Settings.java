@@ -2,7 +2,7 @@ package org.alopex.scylla;
 
 public class Settings {
 
-	public static double maxError = 0.00005;
+	public static double maxError = 0.00030270;
 	public static int inputs = 4;
 	public static int hiddenLayers = 1;
 	public static int hiddens = 20;
