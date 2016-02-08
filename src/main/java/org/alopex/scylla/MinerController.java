@@ -27,8 +27,8 @@ public class MinerController {
 	private ArrayList<double[][]> unprocIn;
 	private ArrayList<double[][]> unprocOut;
 
-	private double closePriceMin;
-	private double closePriceMax;
+	private double closePriceMin = 0;
+	private double closePriceMax = Settings.staticHigh;
 
 	public MinerController() {
 		tickers = new ArrayList<> ();
@@ -67,7 +67,6 @@ public class MinerController {
 			double[][] mergedInput = merge(unprocIn);
 			double[][] mergedOutput = merge(unprocOut);
 			
-			System.out.println();
 			System.out.println("Assembling training dataset...");
 
 			BasicMLDataSet trainSet = new BasicMLDataSet(mergedInput, mergedOutput);
@@ -114,7 +113,12 @@ public class MinerController {
 				System.out.println("Train time: " + ((double) (stopTrain - startTrain)) / 1000.0 + "s");
 				System.out.println();
 				System.out.println("Verifying net learning");
+				int counterTest = 0;
 				for(MLDataPair pair : trainSet) {
+					counterTest++;
+					if(counterTest == 20) {
+						break;
+					}
 					final MLData output = network.compute(pair.getInput());
 					System.out.println("Ideal = $" + String.format("%.4f", denorm(pair.getIdeal().getData(0)))
 							+ " | Network = $" + String.format("%.4f", denorm(output.getData(0))));
@@ -137,11 +141,12 @@ public class MinerController {
 			Calendar from = Calendar.getInstance();
 			Calendar to = Calendar.getInstance();
 			from.add(Calendar.MONTH, -1);
+			to.add(Calendar.DAY_OF_MONTH, -1);
 			hubspotData.fetchData(from, to);
 
 			double[][] inputNormalize = new double[1][Settings.inputs];
 			inputNormalize = hubspotData.testData();
-			double[][] testInput = normalize(inputNormalize, false, true);
+			double[][] testInput = normalize(inputNormalize);
 			System.out.println("\t" + Arrays.toString(testInput[0]));
 			MLData output = network.compute(new BasicMLData(testInput[0]));
 			System.out.println("Unformatted output: " + output.getData(0));
@@ -202,37 +207,30 @@ public class MinerController {
 					}
 				})).start();
 			}
-			Thread.sleep(2000 * tickers.size());
+			Thread.sleep(900 * tickers.size());
+			System.out.println();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 	}
 	
 	private void normalizeFragments() {
+		System.out.println("Normalizing data fragments...");
 		System.out.println();
-		System.out.println("[I] Before normalization:");
-		System.out.println("\t" + unprocIn.get(0)[0][0]);
 		for(int i = 0; i < unprocIn.size(); i++) {
-			unprocIn.set(i, normalize(unprocIn.get(i), false, false));
+			unprocIn.set(i, normalize(unprocIn.get(i)));
 		}
-		System.out.println("[I] After  normalization:");
-		System.out.println("\t" + unprocIn.get(0)[0][0]);
 
-		System.out.println();
-		System.out.println("[O] Before normalization:");
-		System.out.println("\t" + unprocOut.get(0)[0][0]);
 		for(int i = 0; i < unprocOut.size(); i++) {
-			unprocOut.set(i, normalize(unprocOut.get(i), true, false));
+			unprocOut.set(i, normalize(unprocOut.get(i)));
 		}
-		System.out.println("[O] After  normalization:");
-		System.out.println("\t" + unprocOut.get(0)[0][0]);
 	}
 
 	public void sendData(double[][] input, double[][] output) {
 		unprocIn.add(input);
-		System.out.println("Received input of length " + input.length);
+		//System.out.println("Received input of length " + input.length);
 		unprocOut.add(output);
-		System.out.println("Received output of length " + output.length);
+		//System.out.println("Received output of length " + output.length);
 	}
 
 	/**
@@ -240,7 +238,7 @@ public class MinerController {
 	 *
 	 * @param input
 	 */
-	private double[][] normalize(double[][] input, boolean output, boolean override) {
+	private double[][] normalize(double[][] input) {
 		//a = place of inputs
 		for(int place = 0; place < input[0].length; place++) {
 			//b = round of input
@@ -253,23 +251,8 @@ public class MinerController {
 			}
 
 			//Detection of largest value
-			double min = thisSet[0];
-			double max = thisSet[0];
-			
-			for(int i = 0; i < thisSet.length; i++) {
-				if(thisSet[i] > max) {
-					max = thisSet[i];
-				} else if(thisSet[i] < min) {
-					min = thisSet[i];
-				}
-			}
-
-			//Map value to this input if we are normalizing an output array
-			if((output || override) && place == 0) {
-				closePriceMin = min;
-				closePriceMax = max;
-			}
-
+			double min = 0;
+			double max = Settings.staticHigh;
 
 			//Normalize all data
 			for(int i = 0; i < thisSet.length; i++) {
