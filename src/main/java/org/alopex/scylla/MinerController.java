@@ -30,13 +30,15 @@ public class MinerController {
 	private double closePriceMin = 0;
 	private double closePriceMax = Settings.staticHigh;
 
+	private boolean pause = false;
+
 	public MinerController() {
 		tickers = new ArrayList<> ();
 		unprocIn = new ArrayList<> ();
 		unprocOut = new ArrayList<> ();
 	}
 
-	public void train(BasicNetwork network) {
+	public void train(final BasicNetwork network) {
 		try {
 			tickers.add("HUBS");
 			tickers.add("FB");
@@ -59,82 +61,114 @@ public class MinerController {
 			tickers.add("TM");
 			tickers.add("F");
 			tickers.add("GM");
-			
+
 			makeThreads();
 
 			normalizeFragments();
 
 			double[][] mergedInput = merge(unprocIn);
 			double[][] mergedOutput = merge(unprocOut);
-			
+
 			System.out.println("Assembling training dataset...");
+			System.out.println();
 
-			BasicMLDataSet trainSet = new BasicMLDataSet(mergedInput, mergedOutput);
+			final BasicMLDataSet trainSet = new BasicMLDataSet(mergedInput, mergedOutput);
 			final ResilientPropagation train = new ResilientPropagation(network, trainSet);
-			int epoch = 1;
-			long startTrain = System.currentTimeMillis();
-			String lastError = "";
-			int countReset = 0;
-			do {
-				if(epoch == Integer.MAX_VALUE - 1) {
-					System.out.println("Maximum epochs reached. Stopping training...");
-					break;
-				}
 
-				train.iteration();
-
-				//Epoch print check
-				if(epoch % 1000 == 0) {
-					double thisError = train.getError();
-					String thisErrorStr = String.format("%.8f", thisError);
-
-					if(thisErrorStr.equals(lastError)) {
-						countReset++;
-					} else {
-						countReset = 0;
+			//Listener for key P
+			(new Thread(new Runnable() {
+				public void run() {
+					System.out.println("Starting listener for pause key");
+					Scanner keyboard = new Scanner(System.in);
+					while(true) {
+						try {
+							if(keyboard.hasNext()) {
+								String input = keyboard.nextLine();
+								if(input.equalsIgnoreCase("P")) {
+									System.out.println("Pause toggled");
+									pause = !pause;
+								}
+							}
+							Thread.sleep(500);
+						} catch (Exception ex) {
+						} finally {
+							keyboard.close();
+						}
 					}
-
-					//countReset check
-					if(countReset == 25) {
-						System.out.println("countReset (" + lastError + " x " + countReset + ") triggered. Stopping training...");
-						break;
-					}
-
-					lastError = thisErrorStr;
-					System.out.println("SET " + epoch + " | @ " + String.format("%.8f", thisError));
 				}
+			})).start();
 
-				epoch++;
-			} while(train.getError() > Settings.maxError);
-			train.finishTraining();
-			long stopTrain = System.currentTimeMillis();
-			if(Settings.debug) {
-				System.out.println();
-				System.out.println("Train time: " + ((double) (stopTrain - startTrain)) / 1000.0 + "s");
-				System.out.println();
-				System.out.println("Verifying net learning");
-				int counterTest = 0;
-				for(MLDataPair pair : trainSet) {
-					counterTest++;
-					if(counterTest == 20) {
-						break;
+			Thread trainThread = (new Thread(new Runnable() {
+				public void run() {
+
+					int epoch = 1;
+					long startTrain = System.currentTimeMillis();
+					String lastError = "";
+					int countReset = 0;
+					do {
+						if(epoch == Integer.MAX_VALUE - 1) {
+							System.out.println("Maximum epochs reached. Stopping training...");
+							break;
+						}
+
+						train.iteration();
+
+						//Epoch print check
+						if(epoch % 1000 == 0) {
+							double thisError = train.getError();
+							String thisErrorStr = String.format("%.8f", thisError);
+
+							if(thisErrorStr.equals(lastError)) {
+								countReset++;
+							} else {
+								countReset = 0;
+							}
+
+							//countReset check
+							if(countReset == 25) {
+								System.out.println("countReset (" + lastError + " x " + countReset + ") triggered. Stopping training...");
+								break;
+							}
+
+							lastError = thisErrorStr;
+							System.out.println("SET " + epoch + " | @ " + String.format("%.8f", thisError));
+						}
+
+						epoch++;
+					} while(!pause && train.getError() > Settings.maxError);
+
+					train.finishTraining();
+					long stopTrain = System.currentTimeMillis();
+					if(Settings.debug) {
+						System.out.println();
+						System.out.println("Train time: " + ((double) (stopTrain - startTrain)) / 1000.0 + "s");
+						System.out.println();
+						System.out.println("Verifying net learning");
+						int counterTest = 0;
+						for(MLDataPair pair : trainSet) {
+							counterTest++;
+							if(counterTest == 20) {
+								break;
+							}
+							final MLData output = network.compute(pair.getInput());
+							System.out.println("Ideal = " + String.format("%.3f", denorm(pair.getIdeal().getData(0)))
+									+ " | Network = " + String.format("%.3f", output.getData(0)));
+						}
 					}
-					final MLData output = network.compute(pair.getInput());
-					System.out.println("Ideal = " + String.format("%.3f", denorm(pair.getIdeal().getData(0)))
-							+ " | Network = " + String.format("%.3f", output.getData(0)));
+					promptSave(network);
 				}
-			}
+			}));
+			trainThread.start();
+			trainThread.join();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
-
-		promptSave(network);
 	}
-	
+
 	public void eval(BasicNetwork network) {
 		try {
 			Stock hubspot = YahooFinance.get("MSFT", true);
-			
+
 			Thread.sleep(100); //TODO: move sleep to StockMiner
 			StockMiner hubspotData = new StockMiner(null, hubspot);
 
@@ -165,7 +199,7 @@ public class MinerController {
 			ex.printStackTrace();
 		}
 	}
-	
+
 	private void promptSave(BasicNetwork network) {
 		System.out.println();
 		System.out.println("Save core.dat?");
@@ -204,7 +238,7 @@ public class MinerController {
 							Calendar from = Calendar.getInstance();
 							Calendar to = Calendar.getInstance();
 
-							from.add(Calendar.YEAR, -5);
+							from.add(Calendar.YEAR, -1);
 							to.add(Calendar.MONTH, -1);
 
 							stockMiner.fetchData(from, to);
@@ -220,7 +254,7 @@ public class MinerController {
 			ex.printStackTrace();
 		}
 	}
-	
+
 	private void normalizeFragments() {
 		System.out.println("Normalizing data fragments...");
 		System.out.println();
