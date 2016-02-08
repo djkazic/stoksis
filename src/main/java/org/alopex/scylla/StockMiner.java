@@ -49,7 +49,6 @@ public class StockMiner {
 				//DEBUG
 				//SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
 				//System.out.println("Open price logged: " + sdf.format(thq.getDate().getTime()) + " | " + thq.getOpen().doubleValue());
-				
 				closePrices.add(thq.getClose().doubleValue());
 				
 				//DEBUG
@@ -97,9 +96,19 @@ public class StockMiner {
 		double[][] toutputs = new double[dataPoints - 1][Settings.outputs];
 		for(int i = 0; i < dataPoints - 1; i++) {
 			//Set each input for this data point
-			toutputs[i][0] = closePrices.get(i + 1).doubleValue();
+			int defaultOut = 0;
+			if(closePrices.get(i) > closePrices.get(i + 1)) {
+				defaultOut = -1;
+			} else if(closePrices.get(i) < closePrices.get(i + 1)) {
+				defaultOut = 1;
+			}
+			toutputs[i][0] = defaultOut;
 		}
 		return toutputs;
+	}
+	
+	public double lastClose() {
+		return closePrices.get(0);
 	}
 	
 	public String toString() {

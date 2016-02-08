@@ -120,8 +120,8 @@ public class MinerController {
 						break;
 					}
 					final MLData output = network.compute(pair.getInput());
-					System.out.println("Ideal = $" + String.format("%.4f", denorm(pair.getIdeal().getData(0)))
-							+ " | Network = $" + String.format("%.4f", denorm(output.getData(0))));
+					System.out.println("Ideal = " + String.format("%.3f", denorm(pair.getIdeal().getData(0)))
+							+ " | Network = " + String.format("%.3f", output.getData(0)));
 				}
 			}
 		} catch (Exception ex) {
@@ -133,7 +133,7 @@ public class MinerController {
 	
 	public void eval(BasicNetwork network) {
 		try {
-			Stock hubspot = YahooFinance.get("HUBS", true);
+			Stock hubspot = YahooFinance.get("MSFT", true);
 			
 			Thread.sleep(100); //TODO: move sleep to StockMiner
 			StockMiner hubspotData = new StockMiner(null, hubspot);
@@ -141,7 +141,7 @@ public class MinerController {
 			Calendar from = Calendar.getInstance();
 			Calendar to = Calendar.getInstance();
 			from.add(Calendar.MONTH, -1);
-			to.add(Calendar.DAY_OF_MONTH, -1);
+			//to.add(Calendar.DAY_OF_MONTH, -1);
 			hubspotData.fetchData(from, to);
 
 			double[][] inputNormalize = new double[1][Settings.inputs];
@@ -149,10 +149,17 @@ public class MinerController {
 			double[][] testInput = normalize(inputNormalize);
 			System.out.println("\t" + Arrays.toString(testInput[0]));
 			MLData output = network.compute(new BasicMLData(testInput[0]));
-			System.out.println("Unformatted output: " + output.getData(0));
 			for(int i = 0; i < output.size(); i++) {
 				SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
-				System.out.println(sdf.format(to.getTime()) + " close prediction: " + String.format("%.4f", denorm(output.getData(i))));
+				double lastClose = hubspotData.lastClose();
+				double res = output.getData(i);
+				String endString = "";
+				if(res < 0) {
+					endString = "lower than " + lastClose + " @ " + (((res / -1)) * 100) + "% confidence";
+				} else if(res > 0) {
+					endString = "higher than " + lastClose + " @ " + ((res) * 100);
+				}
+				System.out.println(sdf.format(to.getTime()) + " close prediction: " + endString);
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -221,9 +228,11 @@ public class MinerController {
 			unprocIn.set(i, normalize(unprocIn.get(i)));
 		}
 
+		/**
 		for(int i = 0; i < unprocOut.size(); i++) {
 			unprocOut.set(i, normalize(unprocOut.get(i)));
 		}
+		 */
 	}
 
 	public void sendData(double[][] input, double[][] output) {
