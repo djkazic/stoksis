@@ -29,8 +29,9 @@ public class MinerController {
 
 	private double closePriceMin = 0;
 	private double closePriceMax = Settings.staticHigh;
-
-	private boolean pause = false;
+	
+	private boolean abort = false;
+	private Thread abortThread;
 
 	public MinerController() {
 		tickers = new ArrayList<> ();
@@ -76,17 +77,18 @@ public class MinerController {
 			final ResilientPropagation train = new ResilientPropagation(network, trainSet);
 
 			//Listener for key P
-			(new Thread(new Runnable() {
+			abortThread = (new Thread(new Runnable() {
 				public void run() {
-					System.out.println("Starting listener for pause key");
+					System.out.println("Starting listener for training abort...");
+					System.out.println();
 					Scanner keyboard = new Scanner(System.in);
 					while(true) {
 						try {
 							if(keyboard.hasNext()) {
 								String input = keyboard.nextLine();
-								if(input.equalsIgnoreCase("P")) {
-									System.out.println("Pause toggled");
-									pause = !pause;
+								if(input.equalsIgnoreCase("AB")) {
+									System.out.println("Aborting training...");
+									abort = true;
 								}
 							}
 							Thread.sleep(500);
@@ -96,7 +98,8 @@ public class MinerController {
 						}
 					}
 				}
-			})).start();
+			}));
+			abortThread.start();
 
 			Thread trainThread = (new Thread(new Runnable() {
 				public void run() {
@@ -106,6 +109,10 @@ public class MinerController {
 					String lastError = "";
 					int countReset = 0;
 					do {
+						if(abort) {
+							break;
+						}
+						
 						if(epoch == Integer.MAX_VALUE - 1) {
 							System.out.println("Maximum epochs reached. Stopping training...");
 							break;
@@ -135,9 +142,11 @@ public class MinerController {
 						}
 
 						epoch++;
-					} while(!pause && train.getError() > Settings.maxError);
+					} while(train.getError() > Settings.maxError);
 
 					train.finishTraining();
+					abortThread.interrupt();
+					
 					long stopTrain = System.currentTimeMillis();
 					if(Settings.debug) {
 						System.out.println();
@@ -151,11 +160,19 @@ public class MinerController {
 								break;
 							}
 							final MLData output = network.compute(pair.getInput());
-							System.out.println("Ideal = " + String.format("%.3f", denorm(pair.getIdeal().getData(0)))
+							
+							//TODO: clean up string processing here
+							double ideal = pair.getIdeal().getData(0);
+							String idealAlign = String.format("%.3f", pair.getIdeal().getData(0));
+							if(ideal >= 0) {
+								idealAlign = " " + String.format("%.3f", pair.getIdeal().getData(0));
+							}
+							System.out.println("Ideal = " + idealAlign
 									+ " | Network = " + String.format("%.3f", output.getData(0)));
 						}
 					}
-					promptSave(network);
+					System.out.println();
+					save(network);
 				}
 			}));
 			trainThread.start();
@@ -182,6 +199,8 @@ public class MinerController {
 			inputNormalize = hubspotData.testData();
 			double[][] testInput = normalize(inputNormalize);
 			System.out.println("\t" + Arrays.toString(testInput[0]));
+			System.out.println();
+			
 			MLData output = network.compute(new BasicMLData(testInput[0]));
 			for(int i = 0; i < output.size(); i++) {
 				SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
@@ -189,9 +208,9 @@ public class MinerController {
 				double res = output.getData(i);
 				String endString = "";
 				if(res < 0) {
-					endString = "lower than " + lastClose + " @ " + (((res / -1)) * 100) + "% confidence";
+					endString = hubspot.getSymbol() + " lower than " + lastClose + " @ " + String.format("%.2f", (((res / -1)) * 100)) + "% confidence";
 				} else if(res > 0) {
-					endString = "higher than " + lastClose + " @ " + ((res) * 100);
+					endString = hubspot.getSymbol() + " higher than " + lastClose + " @ " + String.format("%.2f", ((res) * 100)) + "% confidence";
 				}
 				System.out.println(sdf.format(to.getTime()) + " close prediction: " + endString);
 			}
@@ -200,24 +219,13 @@ public class MinerController {
 		}
 	}
 
-	private void promptSave(BasicNetwork network) {
+	private void save(BasicNetwork network) {
+		String coreName = "core-" + System.currentTimeMillis() + ".dat";
+		System.out.println("Saving " + coreName + "...");
+
+		EncogDirectoryPersistence.saveObject(new File(coreName), network);
+		System.out.println("Core saved.");
 		System.out.println();
-		System.out.println("Save core.dat?");
-		Scanner saveScan = new Scanner(System.in);
-		while(saveScan.hasNext()) {
-			String answer = saveScan.nextLine();
-			if(answer.equalsIgnoreCase("Y")) {
-				EncogDirectoryPersistence.saveObject(new File("core.dat"), network);
-				System.out.println("Core saved.");
-				break;
-			} else if(answer.equalsIgnoreCase("N")) {
-				System.out.println("Core rejected.");
-				break;
-			} else {
-				System.out.println("Unrecognized reply.");
-			}
-		}
-		saveScan.close();
 	}
 
 	private void makeThreads() {
