@@ -43,27 +43,41 @@ public class MinerController {
 
 	public void train(final BasicNetwork network) {
 		try {
-			tickers.add("FB");
+			//Technology
 			tickers.add("AAPL");
-			tickers.add("UA");
 			tickers.add("GOOG");
-			tickers.add("CSCO");
-			tickers.add("UNH");
 			tickers.add("MSFT");
 			tickers.add("ORCL");
-			tickers.add("CFC");
-			tickers.add("HD");
-			tickers.add("TWX");
-			tickers.add("WMT");
+			tickers.add("FB");
 			tickers.add("AMZN");
 			tickers.add("NFLX");
-			tickers.add("XOM");
-			tickers.add("BP");
-			tickers.add("CVX");
+			
+			//Auto
 			tickers.add("TM");
 			tickers.add("F");
 			tickers.add("GM");
+			tickers.add("HMC");
+			tickers.add("TSLA");
 
+			//Health Care
+			tickers.add("HNT");
+			tickers.add("CNC");
+			tickers.add("ANTM");
+			tickers.add("UNH");
+			tickers.add("HUM");
+			
+			//Oil
+			tickers.add("XOM");
+			tickers.add("BP");
+			tickers.add("CVX");
+			tickers.add("COP");
+			
+			//Gold
+			tickers.add("CDE");
+			tickers.add("NEM");
+			tickers.add("ABX");
+			tickers.add("FNV");
+			
 			makeThreads();
 
 			normalizeFragments();
