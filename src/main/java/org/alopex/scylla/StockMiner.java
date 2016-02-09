@@ -45,18 +45,28 @@ public class StockMiner {
 			for(int i = 0; i < hq.size(); i++) {
 				HistoricalQuote thq = hq.get(i);
 				openPrices.add(thq.getOpen().doubleValue());
-				
-				//DEBUG
-				//SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
-				//System.out.println("Open price logged: " + sdf.format(thq.getDate().getTime()) + " | " + thq.getOpen().doubleValue());
 				closePrices.add(thq.getClose().doubleValue());
-				
-				//DEBUG
-				//System.out.println("\tClose price logged: " + sdf.format(thq.getDate().getTime()) + " | " + thq.getClose().doubleValue());
-				
 				highPrices.add(thq.getHigh().doubleValue());
 				lowPrices.add(thq.getLow().doubleValue());
-				//volumes.add((double) thq.getVolume());
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		if(mc != null) {
+			mc.sendData(this.getInputs(), this.getOutputs());
+		}
+	}
+	
+	public void fetchTestData() {
+		try {
+			closePrices.add(stock.getQuote().getPrice().doubleValue());
+			hq = stock.getHistory();
+			for(int i = 0; i < hq.size(); i++) {
+				HistoricalQuote thq = hq.get(i);
+				openPrices.add(thq.getOpen().doubleValue());
+				closePrices.add(thq.getClose().doubleValue());
+				highPrices.add(thq.getHigh().doubleValue());
+				lowPrices.add(thq.getLow().doubleValue());
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -67,8 +77,8 @@ public class StockMiner {
 	}
 
 	public double[][] testData() {
-		double[][] data = new double[hq.size() - 1][Settings.inputs];
-		System.out.println("Packing " + hq.size() + " frames for test data...");
+		double[][] data = new double[hq.size()][Settings.inputs];
+		System.out.println("Packing " + data.length + " frames for test data...");
 		for(int i = 0; i < data.length; i++) {
 			data[i][0] = openPrices.get(i);
 			data[i][1] = highPrices.get(i);
@@ -81,7 +91,7 @@ public class StockMiner {
 	public double[][] getInputs() {
 		int dataPoints = hq.size();
 		double[][] tinputs = new double[dataPoints - 1][Settings.inputs];
-		for(int i = 0; i < dataPoints - 1; i++) {
+		for(int i = 1; i < dataPoints - 1; i++) {
 			//Set each input for this data point
 			tinputs[i][0] = openPrices.get(i);
 			tinputs[i][1] = highPrices.get(i);
@@ -94,20 +104,26 @@ public class StockMiner {
 	public double[][] getOutputs() {
 		int dataPoints = hq.size();
 		double[][] toutputs = new double[dataPoints - 1][Settings.outputs];
-		for(int i = 0; i < dataPoints - 1; i++) {
-			//Set each input for this data point
+		for(int i = 1; i < dataPoints - 1; i++) {
 			int defaultOut = 0;
-			if(closePrices.get(i) > closePrices.get(i + 1)) {
-				defaultOut = -1;
-			} else if(closePrices.get(i) < closePrices.get(i + 1)) {
+			
+			if(closePrices.get(i) < closePrices.get(i - 1)) {
+				defaultOut = 0;
+			} else if(closePrices.get(i) > closePrices.get(i - 1)) {
 				defaultOut = 1;
 			}
+			
 			toutputs[i][0] = defaultOut;
 		}
 		return toutputs;
 	}
 	
 	public double lastClose() {
+		//System.out.println(closePrices);
+		return closePrices.get(1);
+	}
+	
+	public double actualClose() {
 		return closePrices.get(0);
 	}
 	

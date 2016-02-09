@@ -26,6 +26,8 @@ public class MinerController {
 	private ArrayList<String> tickers;
 	private ArrayList<double[][]> unprocIn;
 	private ArrayList<double[][]> unprocOut;
+	
+	private int inputLatchCount = 0;
 
 	private double closePriceMin = 0;
 	private double closePriceMax = Settings.staticHigh;
@@ -41,7 +43,6 @@ public class MinerController {
 
 	public void train(final BasicNetwork network) {
 		try {
-			tickers.add("HUBS");
 			tickers.add("FB");
 			tickers.add("AAPL");
 			tickers.add("UA");
@@ -182,21 +183,29 @@ public class MinerController {
 		}
 	}
 
-	public void eval(BasicNetwork network) {
+	public void eval(BasicNetwork network, String ticker, int daysAgo) {
 		try {
-			Stock hubspot = YahooFinance.get("MSFT", true);
+			int daysAgoEnd = daysAgo;
+			
+			daysAgoEnd *= -1;
+			
+			Stock stock = YahooFinance.get(ticker, true);
 
 			Thread.sleep(100); //TODO: move sleep to StockMiner
-			StockMiner hubspotData = new StockMiner(null, hubspot);
+			StockMiner stockData = new StockMiner(null, stock);
 
 			Calendar from = Calendar.getInstance();
 			Calendar to = Calendar.getInstance();
-			from.add(Calendar.MONTH, -1);
-			//to.add(Calendar.DAY_OF_MONTH, -1);
-			hubspotData.fetchData(from, to);
+			
+			System.out.println("Evaluating " + ticker + " from " + daysAgoEnd + " days ago");
+			
+			from.add(Calendar.DAY_OF_MONTH, daysAgoEnd - 5);
+			to.add(Calendar.DAY_OF_MONTH, daysAgoEnd);
+			stockData.fetchData(from, to);
 
 			double[][] inputNormalize = new double[1][Settings.inputs];
-			inputNormalize = hubspotData.testData();
+			inputNormalize = stockData.testData();
+
 			double[][] testInput = normalize(inputNormalize);
 			System.out.println("\t" + Arrays.toString(testInput[0]));
 			System.out.println();
@@ -204,15 +213,18 @@ public class MinerController {
 			MLData output = network.compute(new BasicMLData(testInput[0]));
 			for(int i = 0; i < output.size(); i++) {
 				SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
-				double lastClose = hubspotData.lastClose();
+				double lastClose = stockData.lastClose();
 				double res = output.getData(i);
 				String endString = "";
-				if(res < 0) {
-					endString = hubspot.getSymbol() + " lower than " + lastClose + " @ " + String.format("%.2f", (((res / -1)) * 100)) + "% confidence";
-				} else if(res > 0) {
-					endString = hubspot.getSymbol() + " higher than " + lastClose + " @ " + String.format("%.2f", ((res) * 100)) + "% confidence";
+				
+				if(res < 0.5) {
+					endString = stock.getSymbol() + " lower than " + lastClose + " @ " + String.format("%.2f", ((0.5 - res) * 2 * 100)) + "% confidence";
+				} else if(res > 0.5) {
+					endString = stock.getSymbol() + " higher than " + lastClose + " @ " + String.format("%.2f", ((res - 0.5) * 2 * 100)) + "% confidence";
 				}
 				System.out.println(sdf.format(to.getTime()) + " close prediction: " + endString);
+				System.out.println("Actual close price for " + sdf.format(to.getTime()) + ": " + stockData.actualClose());
+				System.out.println();
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -232,6 +244,7 @@ public class MinerController {
 		try {
 			//Make threads to get data
 			for(int i = 0; i < tickers.size(); i++) {
+				
 				final String thisTicker = tickers.get(i);
 				final MinerController mc = this;
 
@@ -247,7 +260,7 @@ public class MinerController {
 							Calendar to = Calendar.getInstance();
 
 							from.add(Calendar.YEAR, -1);
-							to.add(Calendar.MONTH, -1);
+							to.add(Calendar.DAY_OF_MONTH, -7);
 
 							stockMiner.fetchData(from, to);
 						} catch (Exception ex) {
@@ -256,7 +269,7 @@ public class MinerController {
 					}
 				})).start();
 			}
-			Thread.sleep(900 * tickers.size());
+			Thread.sleep(1000 * tickers.size());
 			System.out.println();
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -279,9 +292,8 @@ public class MinerController {
 
 	public void sendData(double[][] input, double[][] output) {
 		unprocIn.add(input);
-		//System.out.println("Received input of length " + input.length);
+		inputLatchCount++;
 		unprocOut.add(output);
-		//System.out.println("Received output of length " + output.length);
 	}
 
 	/**

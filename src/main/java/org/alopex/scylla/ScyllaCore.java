@@ -3,7 +3,7 @@ package org.alopex.scylla;
 import java.io.File;
 import java.util.logging.LogManager;
 
-import org.encog.engine.network.activation.ActivationTANH;
+import org.encog.engine.network.activation.ActivationSigmoid;
 import org.encog.neural.networks.BasicNetwork;
 import org.encog.neural.networks.layers.BasicLayer;
 import org.encog.persist.EncogDirectoryPersistence;
@@ -20,13 +20,14 @@ public class ScyllaCore {
 		LogManager.getLogManager().reset();
 
 		if(!new File("core.dat").exists()) {
+			System.out.println("Starting new core...");
 			network = new BasicNetwork();
 			initNetworkArch();
 		} else {
 			System.out.println("Existing core detected. Loading...");
-			System.out.println();
 			network = (BasicNetwork) EncogDirectoryPersistence.loadObject(new File("core.dat"));
 		}
+		System.out.println();
 
 		mc = new MinerController();
 		
@@ -50,16 +51,22 @@ public class ScyllaCore {
 		if(train)
 			mc.train(network);
 		
-		if(eval)
-			mc.eval(network);
+		if(eval) {
+			//mc.eval(network, "GOOG", 4);
+			//mc.eval(network, "GOOG", 2);
+			//mc.eval(network, "GOOG", 1);
+			mc.eval(network, "HUBS", 3);
+			mc.eval(network, "HUBS", 4);
+			mc.eval(network, "HUBS", 0);
+		}
 	}
 
 	private static void initNetworkArch() {
 		network.addLayer(new BasicLayer(null, true, Settings.inputs));
 		for(int i = 0; i < Settings.hiddenLayers; i++) {
-			network.addLayer(new BasicLayer(new ActivationTANH(), true, Settings.hiddens));
+			network.addLayer(new BasicLayer(new ActivationSigmoid(), true, Settings.hiddens));
 		}
-		network.addLayer(new BasicLayer(new ActivationTANH(), false, Settings.outputs));
+		network.addLayer(new BasicLayer(new ActivationSigmoid(), false, Settings.outputs));
 		network.getStructure().finalizeStructure();
 		network.reset();
 	}
