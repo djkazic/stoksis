@@ -27,6 +27,7 @@ public class MinerController {
 	private ArrayList<double[][]> unprocIn;
 	private ArrayList<double[][]> unprocOut;
 	
+	@SuppressWarnings("unused")
 	private int inputLatchCount = 0;
 
 	private double closePriceMin = 0;
@@ -215,7 +216,12 @@ public class MinerController {
 			
 			from.add(Calendar.DAY_OF_MONTH, daysAgoEnd - 5);
 			to.add(Calendar.DAY_OF_MONTH, daysAgoEnd);
-			stockData.fetchData(from, to);
+			
+			if(daysAgo > 0) {
+				stockData.fetchData(from, to);
+			} else {
+				stockData.fetchTestData();
+			}
 
 			double[][] inputNormalize = new double[1][Settings.inputs];
 			inputNormalize = stockData.testData();
@@ -232,16 +238,34 @@ public class MinerController {
 				String endString = "";
 				
 				if(res < 0.5) {
-					endString = stock.getSymbol() + " lower than " + lastClose + " @ " + String.format("%.2f", ((0.5 - res) * 2 * 100)) + "% confidence";
+					endString = " lower than " + lastClose + " @ " + String.format("%.2f", ((0.5 - res) * 2 * 100)) + "% confidence";
 				} else if(res > 0.5) {
-					endString = stock.getSymbol() + " higher than " + lastClose + " @ " + String.format("%.2f", ((res - 0.5) * 2 * 100)) + "% confidence";
+					endString = " higher than " + lastClose + " @ " + String.format("%.2f", ((res - 0.5) * 2 * 100)) + "% confidence";
 				}
 				System.out.println(sdf.format(to.getTime()) + " close prediction: " + endString);
-				System.out.println("Actual close price for " + sdf.format(to.getTime()) + ": " + stockData.actualClose());
+				
+				double actualValue = 0;
+				if(daysAgo > 0) {
+					actualValue = stockData.actualClose();
+					System.out.println("Actual close price for " + stock.getSymbol() + ": " + actualValue + " || EVAL_STATUS: " + verify(res, lastClose, actualValue));
+				} else {
+					actualValue = stock.getQuote().getPrice().doubleValue();
+					System.out.println("Current share price for " + stock.getSymbol() + ": " + actualValue + " || EVAL_STATUS: " + verify(res, lastClose, actualValue));
+				}
 				System.out.println();
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
+		}
+	}
+	
+	private boolean verify(double res, double lastClose, double actualValue) {
+		if(res < 0.5) {
+			return (actualValue < lastClose);
+		} else if(res > 0.5) {
+			return (actualValue > lastClose);
+		} else {
+			return (actualValue == lastClose);
 		}
 	}
 

@@ -52,12 +52,9 @@ public class ScyllaCore {
 			mc.train(network);
 		
 		if(eval) {
-			//mc.eval(network, "GOOG", 4);
-			//mc.eval(network, "GOOG", 2);
-			//mc.eval(network, "GOOG", 1);
-			mc.eval(network, "HUBS", 3);
-			mc.eval(network, "HUBS", 4);
-			mc.eval(network, "HUBS", 0);
+			for(int i = 10; i > 0; i--) {
+				mc.eval(network, "GOOG", i);
+			}
 		}
 	}
 

@@ -119,7 +119,6 @@ public class StockMiner {
 	}
 	
 	public double lastClose() {
-		//System.out.println(closePrices);
 		return closePrices.get(1);
 	}
 	
